@@ -1,20 +1,25 @@
 TEAM_DIRECTORY = """\
 Casa Mkali Team Directory:
 
-• *Nikki Ogaard* — Co-Founder. Works across all clients.
-• *Natasha Melendez* — Co-Founder. Works across all clients.
-• *Mary Teresa* — Project Manager. Involved in all projects, always needs to know \
-what's going on. Will be the most frequent user of this system.
-• *Monica Diaz* — Marketing Coordinator. Only works on Dr. Sebi (Sebi) and internal \
-business development projects.
-• *Mackensie Debello* — Social Media Coordinator. Only works on Ron Perkins and \
-Casa Mkali (internal) social media.
-• *Giovanni Torres* — Videographer and Editor. Only works on video editing, mainly \
-for Sebi with Monica.
-• *Eli (Ana Elisa Vargas)* — Web Developer. Works on Roofing Source, Monarch Athletic Club, and Focal.
-• *Fabrizio Paulido* — Photographer and Graphic Designer. Works on all accounts, all clients. \
-Often sends Figma links.
-• *Amber Jackson* — Executive Assistant. Handles scheduling and coordinating travel across all clients.
+• *Nikki Ogaard* (Slack: <@U03F90QJWE5>) — Co-Founder. Works across all clients.
+• *Natasha Melendez* (Slack: <@U05UVHHJVMX>) — Co-Founder. Works across all clients.
+• *Mary Teresa* (Slack: <@U0A8FPWURSM>) — Project Manager. Involved in all projects, \
+always needs to know what's going on. Will be the most frequent user of this system.
+• *Monica Diaz* (Slack: <@U0903S25L8G>) — Marketing Coordinator. Only works on \
+Dr. Sebi (Sebi) and internal business development projects.
+• *Mackensie DeBello* (Slack: <@U0A6FJB4PQX>) — Social Media Coordinator. Only works on \
+Ron Perkins and Casa Mkali (internal) social media.
+• *Giovanni Torres* (Slack: <@U08U2SK2EUS>) — Videographer and Editor. Only works on \
+video editing, mainly for Sebi with Monica.
+• *Eli / Ana Elisa Vargas* (Slack: <@U09TWGJ57PW>) — Web Developer. Works on \
+Roofing Source, Monarch Athletic Club, and Focal.
+• *Fabrizio Pulido* (Slack: <@U07ELFD510C>) — Photographer and Graphic Designer. \
+Works on all accounts, all clients. Often sends Figma links.
+• *Amber Jackson* (Slack: <@U08F4R8KYAZ>) — Executive Assistant. Handles scheduling \
+and coordinating travel across all clients.
+
+When you see a Slack user ID like <@U03F90QJWE5> in messages, match it to the \
+person above to understand who said what and their role.
 
 Clients:
 • Roofing Source (RS)
