@@ -2,6 +2,7 @@
 node_modules/
 venv/
 __pycache__/
+*.egg-info/
 
 # Environment
 .env
@@ -14,3 +15,11 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Data / runtime
+data/
+*.db
+
+# Gmail credentials
+gmail_token.json
+gmail_credentials.json

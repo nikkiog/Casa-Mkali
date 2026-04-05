@@ -1,0 +1,21 @@
+[project]
+name = "cm-secure-assistant"
+version = "1.0.0"
+description = "CM Secure Assistant — searches Casa Mkali Slack messages and answers team questions via DM"
+requires-python = ">=3.9"
+dependencies = [
+    "anthropic>=0.80.0",
+    "slack-bolt>=1.20.0",
+    "slack-sdk>=3.33.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"

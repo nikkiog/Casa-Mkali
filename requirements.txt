@@ -1,0 +1,7 @@
+anthropic>=0.80.0
+slack-bolt>=1.20.0
+slack-sdk>=3.33.0
+python-dotenv>=1.0.0
+google-api-python-client>=2.150.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
