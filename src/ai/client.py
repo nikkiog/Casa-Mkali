@@ -97,10 +97,27 @@ class AIClient:
 
         results = sorted(all_results.values(), key=lambda m: m["ts"], reverse=True)
 
-        # Also search emails
-        email_results = self.message_store.search_emails(question, limit=10)
+        # Search emails by keyword
+        email_results = {}
+        for email in self.message_store.search_emails(question, limit=10):
+            email_results[email["gmail_id"]] = email
 
-        return results[:50], email_results
+        # Also search with individual words
+        for word in words[:5]:
+            for email in self.message_store.search_emails(word, limit=5):
+                email_results[email["gmail_id"]] = email
+
+        # Always include recent emails (last 7 days) for context
+        for email in self.message_store.get_recent_emails(hours=168, limit=20):
+            email_results[email["gmail_id"]] = email
+
+        email_list = sorted(
+            email_results.values(),
+            key=lambda e: e.get("email_date", ""),
+            reverse=True,
+        )
+
+        return results[:50], email_list[:30]
 
     def generate_personal_digest(
         self,
