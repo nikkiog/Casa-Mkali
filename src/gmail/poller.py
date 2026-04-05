@@ -24,7 +24,7 @@ class GmailPoller:
         self.store = message_store
         self._last_history_id: Optional[str] = None
 
-    def poll_new_messages(self, max_results: int = 20) -> list[dict]:
+    def poll_new_messages(self, max_results: int = 50, query: str = "is:inbox") -> list[dict]:
         """Fetch recent unprocessed emails.
 
         Returns a list of parsed email dicts.
@@ -33,7 +33,7 @@ class GmailPoller:
             results = self.service.users().messages().list(
                 userId="me",
                 maxResults=max_results,
-                q="is:inbox newer_than:1d",
+                q=query,
             ).execute()
 
             messages = results.get("messages", [])

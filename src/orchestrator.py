@@ -355,11 +355,38 @@ class Orchestrator:
         if not self.gmail_poller:
             return
 
+        # Initial fetch — get all inbox emails (up to 200)
+        try:
+            logger.info("Starting initial email fetch...")
+            initial_emails = self.gmail_poller.poll_new_messages(
+                max_results=200, query="is:inbox"
+            )
+            stored = 0
+            for email in initial_emails:
+                if self.message_store.store_email(
+                    gmail_id=email["id"],
+                    from_addr=email["from"],
+                    to_addr=email["to"],
+                    subject=email["subject"],
+                    body=email["body"],
+                    snippet=email["snippet"],
+                    email_date=email["date"],
+                ):
+                    stored += 1
+            logger.info("Initial email fetch complete: %d new emails indexed", stored)
+        except Exception:
+            logger.exception("Error during initial email fetch")
+
+        # Ongoing polling
         while self._running:
+            time.sleep(GMAIL_POLL_INTERVAL)
             try:
-                new_emails = self.gmail_poller.poll_new_messages()
+                new_emails = self.gmail_poller.poll_new_messages(
+                    max_results=20, query="is:inbox newer_than:1d"
+                )
+                stored = 0
                 for email in new_emails:
-                    self.message_store.store_email(
+                    if self.message_store.store_email(
                         gmail_id=email["id"],
                         from_addr=email["from"],
                         to_addr=email["to"],
@@ -367,13 +394,12 @@ class Orchestrator:
                         body=email["body"],
                         snippet=email["snippet"],
                         email_date=email["date"],
-                    )
-                if new_emails:
-                    logger.info("Indexed %d new emails", len(new_emails))
+                    ):
+                        stored += 1
+                if stored:
+                    logger.info("Indexed %d new emails", stored)
             except Exception:
                 logger.exception("Error polling Gmail")
-
-            time.sleep(GMAIL_POLL_INTERVAL)
 
     def _initial_index(self):
         """Background thread: initial Slack message backfill."""
