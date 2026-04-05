@@ -123,6 +123,9 @@ class MessageIndexer:
         logger.info("Indexed %d new messages from #%s", stored, channel_name)
         return stored
 
+    # Archived/test channels to skip
+    EXCLUDED_CHANNELS = {"nikkiamberprivate"}
+
     def index_all_channels(self) -> int:
         """Index messages from all accessible channels.
 
@@ -133,6 +136,8 @@ class MessageIndexer:
 
         total = 0
         for ch in channels:
+            if ch["name"] in self.EXCLUDED_CHANNELS:
+                continue
             count = self.index_channel(ch["id"], ch["name"])
             total += count
 
