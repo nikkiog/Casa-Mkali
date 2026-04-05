@@ -50,7 +50,11 @@ class AIClient:
             f"Only use information from the messages and emails above."
         )
 
-        logger.info("Answering question with %d messages, %d emails", len(message_results), len(email_results))
+        logger.info(
+            "Answering question with %d messages, %d emails. Email count in DB: %d",
+            len(message_results), len(email_results),
+            self.message_store.get_email_count(),
+        )
 
         response = self.client.messages.create(
             model=self.model,

@@ -357,12 +357,14 @@ class Orchestrator:
 
         # Initial fetch — get all inbox emails (up to 200)
         try:
-            logger.info("Starting initial email fetch...")
+            logger.info("Starting initial email fetch from projects@casamkali.com...")
             initial_emails = self.gmail_poller.poll_new_messages(
-                max_results=200, query="is:inbox"
+                max_results=200, query="in:anywhere"
             )
+            logger.info("Gmail returned %d emails to process", len(initial_emails))
             stored = 0
             for email in initial_emails:
+                logger.info("Storing email: %s", email.get("subject", "no subject")[:60])
                 if self.message_store.store_email(
                     gmail_id=email["id"],
                     from_addr=email["from"],

@@ -408,6 +408,11 @@ class MessageStore:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_email_count(self) -> int:
+        """Return the total number of indexed emails."""
+        row = self.conn.execute("SELECT COUNT(*) as cnt FROM emails").fetchone()
+        return row["cnt"]
+
     def get_email_by_id(self, gmail_id: str) -> Optional[dict]:
         """Get a full email by its Gmail ID, including body."""
         row = self.conn.execute(
