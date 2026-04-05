@@ -97,19 +97,20 @@ class AIClient:
 
         results = sorted(all_results.values(), key=lambda m: m["ts"], reverse=True)
 
-        # Search emails by keyword
+        # Search ALL emails by keyword (no time limit)
         email_results = {}
-        for email in self.message_store.search_emails(question, limit=10):
+        for email in self.message_store.search_emails(question, limit=20):
             email_results[email["gmail_id"]] = email
 
-        # Also search with individual words
         for word in words[:5]:
-            for email in self.message_store.search_emails(word, limit=5):
+            for email in self.message_store.search_emails(word, limit=10):
                 email_results[email["gmail_id"]] = email
 
-        # Always include recent emails (last 7 days) for context
-        for email in self.message_store.get_recent_emails(hours=168, limit=20):
-            email_results[email["gmail_id"]] = email
+        # For generic/broad questions, also include last 7 days of emails
+        is_generic = len(words) <= 2
+        if is_generic or not email_results:
+            for email in self.message_store.get_recent_emails(hours=168, limit=20):
+                email_results[email["gmail_id"]] = email
 
         email_list = sorted(
             email_results.values(),
