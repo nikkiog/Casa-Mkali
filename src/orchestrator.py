@@ -59,7 +59,7 @@ class Orchestrator:
             self.gmail_poller = GmailPoller(creds, self.message_store)
             logger.info("Gmail integration enabled for projects@casamkali.com")
         except Exception:
-            logger.info("Gmail integration not configured (skipping)")
+            logger.exception("Gmail integration failed to initialize")
 
         # AI
         self.ai_client = AIClient(self.config, self.message_store)
@@ -376,8 +376,8 @@ class Orchestrator:
                 ):
                     stored += 1
             logger.info("Initial email fetch complete: %d new emails indexed", stored)
-        except Exception:
-            logger.exception("Error during initial email fetch")
+        except Exception as e:
+            logger.exception("Error during initial email fetch: %s", str(e))
 
         # Ongoing polling
         while self._running:
