@@ -7,7 +7,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://api.fathom.video/v2"
+BASE_URL = "https://api.fathom.ai/external/v1"
 
 
 class FathomClient:
@@ -24,7 +24,7 @@ class FathomClient:
             "Content-Type": "application/json",
         })
 
-    def _request(self, method: str, path: str, **kwargs) -> dict:
+    def _request(self, method: str, path: str, **kwargs):
         """Make an authenticated request to the Fathom API."""
         url = f"{BASE_URL}{path}"
         resp = self.session.request(method, url, **kwargs)
@@ -32,55 +32,49 @@ class FathomClient:
         return resp.json()
 
     def list_meetings(self, cursor: Optional[str] = None) -> list[dict]:
-        """Fetch all meetings with automatic pagination."""
+        """Fetch all meetings with summaries, transcripts, and action items."""
         all_meetings = []
         while True:
-            params = {}
+            params = {
+                "include_summary": "true",
+                "include_transcript": "true",
+                "include_action_items": "true",
+            }
             if cursor:
                 params["cursor"] = cursor
 
-            data = self._request("GET", "/calls", params=params)
+            data = self._request("GET", "/meetings", params=params)
             items = data.get("items", [])
             all_meetings.extend(items)
 
-            cursor = data.get("next_cursor")
+            cursor = data.get("cursor")
             if not cursor:
                 break
 
         return all_meetings
 
-    def get_meeting(self, call_id: str) -> dict:
-        """Fetch full details for a single meeting including recap."""
-        return self._request("GET", f"/calls/{call_id}")
-
-    def get_transcript(self, call_id: str) -> Optional[str]:
-        """Fetch the full transcript for a meeting.
+    def get_transcript(self, recording_id: int) -> Optional[str]:
+        """Fetch the full transcript for a recording.
 
         Returns the transcript as a single string, or None if unavailable.
         """
         try:
-            data = self._request("GET", f"/calls/{call_id}/transcript")
-            # Transcript may come as a list of segments or a string
+            data = self._request("GET", f"/recordings/{recording_id}/transcript")
             if isinstance(data, list):
                 lines = []
                 for segment in data:
-                    speaker = segment.get("speaker", "Unknown")
+                    speaker_obj = segment.get("speaker", {})
+                    speaker = speaker_obj.get("display_name", "Unknown") if isinstance(speaker_obj, dict) else str(speaker_obj)
                     text = segment.get("text", "")
-                    lines.append(f"{speaker}: {text}")
-                return "\n".join(lines)
-            elif isinstance(data, dict):
-                segments = data.get("segments", data.get("transcript", []))
-                if isinstance(segments, str):
-                    return segments
-                lines = []
-                for segment in segments:
-                    speaker = segment.get("speaker", "Unknown")
-                    text = segment.get("text", "")
-                    lines.append(f"{speaker}: {text}")
+                    timestamp = segment.get("timestamp", "")
+                    if timestamp:
+                        lines.append(f"[{timestamp}] {speaker}: {text}")
+                    else:
+                        lines.append(f"{speaker}: {text}")
                 return "\n".join(lines)
             return str(data) if data else None
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == 404:
-                logger.debug("No transcript available for call %s", call_id)
+                logger.debug("No transcript available for recording %s", recording_id)
                 return None
             raise

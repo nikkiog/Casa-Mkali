@@ -27,7 +27,7 @@ def _format_action_items(meeting: dict) -> Optional[str]:
     lines = []
     for item in items:
         if isinstance(item, dict):
-            text = item.get("text", "")
+            text = item.get("description", "") or item.get("text", "")
             assignee = item.get("assignee", "")
             line = f"- {text}"
             if assignee:
@@ -54,6 +54,36 @@ def _format_attendees(meeting: dict) -> Optional[str]:
         elif email:
             names.append(email)
     return ", ".join(names) if names else None
+
+
+def _extract_summary_text(meeting: dict) -> str:
+    """Extract summary text from the meeting's default_summary field."""
+    summary = meeting.get("default_summary")
+    if not summary:
+        return ""
+    if isinstance(summary, dict):
+        return summary.get("markdown_formatted", "") or summary.get("text", "")
+    return str(summary)
+
+
+def _extract_inline_transcript(meeting: dict) -> Optional[str]:
+    """Extract transcript from inline transcript field (when include_transcript=true)."""
+    transcript = meeting.get("transcript")
+    if not transcript:
+        return None
+    if isinstance(transcript, list):
+        lines = []
+        for segment in transcript:
+            speaker_obj = segment.get("speaker", {})
+            speaker = speaker_obj.get("display_name", "Unknown") if isinstance(speaker_obj, dict) else str(speaker_obj)
+            text = segment.get("text", "")
+            timestamp = segment.get("timestamp", "")
+            if timestamp:
+                lines.append(f"[{timestamp}] {speaker}: {text}")
+            else:
+                lines.append(f"{speaker}: {text}")
+        return "\n".join(lines) if lines else None
+    return str(transcript)
 
 
 def _infer_call_type(meeting: dict) -> str:
@@ -94,6 +124,9 @@ class FathomPoller:
     def poll_and_store(self) -> int:
         """Fetch all meetings from Fathom and store new ones.
 
+        The list_meetings call includes summaries, transcripts, and action
+        items inline, so no extra per-meeting API calls are needed.
+
         Returns the number of newly stored meetings.
         """
         try:
@@ -106,37 +139,36 @@ class FathomPoller:
         stored = 0
 
         for meeting in meetings:
-            call_id = meeting.get("id") or meeting.get("call_id", "")
-            if not call_id:
+            # Use recording_id as the unique identifier
+            recording_id = meeting.get("recording_id")
+            if not recording_id:
                 continue
+
+            fathom_id = str(recording_id)
 
             # Skip if already stored
-            if self.store.is_meeting_stored(call_id):
+            if self.store.is_meeting_stored(fathom_id):
                 continue
 
-            # Fetch full details and transcript
-            try:
-                details = self.client.get_meeting(call_id)
-            except Exception:
-                logger.warning("Could not fetch details for meeting %s", call_id)
-                details = meeting
+            # Extract data from the inline response
+            title = meeting.get("title") or meeting.get("meeting_title") or "Untitled Meeting"
+            meeting_date = _parse_meeting_date(meeting)
+            call_type = _infer_call_type(meeting)
+            summary = _extract_summary_text(meeting)
+            action_items = _format_action_items(meeting)
+            attendees = _format_attendees(meeting)
+            share_url = meeting.get("share_url", "") or meeting.get("url", "")
 
-            transcript = None
-            try:
-                transcript = self.client.get_transcript(call_id)
-            except Exception:
-                logger.debug("Could not fetch transcript for meeting %s", call_id)
-
-            title = details.get("title") or "Untitled Meeting"
-            meeting_date = _parse_meeting_date(details)
-            call_type = _infer_call_type(details)
-            summary = details.get("default_summary") or details.get("summary", "")
-            action_items = _format_action_items(details)
-            attendees = _format_attendees(details)
-            share_url = details.get("share_url", "")
+            # Use inline transcript; fall back to separate API call if missing
+            transcript = _extract_inline_transcript(meeting)
+            if not transcript and recording_id:
+                try:
+                    transcript = self.client.get_transcript(recording_id)
+                except Exception:
+                    logger.debug("Could not fetch transcript for recording %s", recording_id)
 
             if self.store.store_meeting(
-                fathom_id=call_id,
+                fathom_id=fathom_id,
                 title=title,
                 meeting_date=meeting_date,
                 call_type=call_type,
@@ -145,7 +177,7 @@ class FathomPoller:
                 attendees=attendees,
                 transcript=transcript,
                 share_url=share_url,
-                raw_json=json.dumps(details, default=str),
+                raw_json=json.dumps(meeting, default=str),
             ):
                 stored += 1
                 logger.info("Stored meeting: %s (%s)", title[:60], meeting_date)
