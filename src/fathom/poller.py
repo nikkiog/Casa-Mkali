@@ -142,12 +142,18 @@ class FathomPoller:
             # Use recording_id as the unique identifier
             recording_id = meeting.get("recording_id")
             if not recording_id:
+                logger.warning(
+                    "Meeting missing recording_id, keys: %s, title: %s",
+                    list(meeting.keys())[:10],
+                    meeting.get("title", "?")[:60],
+                )
                 continue
 
             fathom_id = str(recording_id)
 
             # Skip if already stored
             if self.store.is_meeting_stored(fathom_id):
+                logger.debug("Meeting %s already stored, skipping", fathom_id)
                 continue
 
             # Extract data from the inline response
