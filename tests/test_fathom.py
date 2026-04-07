@@ -11,7 +11,7 @@ class TestFathomClient:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "items": [{"title": "Meeting 1", "recording_id": 1}],
-            "cursor": None,
+            "next_cursor": None,
         }
         mock_response.raise_for_status = MagicMock()
 
@@ -26,14 +26,14 @@ class TestFathomClient:
         page1 = MagicMock()
         page1.json.return_value = {
             "items": [{"title": "Meeting 1", "recording_id": 1}],
-            "cursor": "cursor_abc",
+            "next_cursor": "cursor_abc",
         }
         page1.raise_for_status = MagicMock()
 
         page2 = MagicMock()
         page2.json.return_value = {
             "items": [{"title": "Meeting 2", "recording_id": 2}],
-            "cursor": None,
+            "next_cursor": None,
         }
         page2.raise_for_status = MagicMock()
 
@@ -49,7 +49,7 @@ class TestFathomClient:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "items": [],
-            "cursor": None,
+            "next_cursor": None,
         }
         mock_response.raise_for_status = MagicMock()
 

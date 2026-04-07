@@ -47,7 +47,7 @@ class FathomClient:
             items = data.get("items", [])
             all_meetings.extend(items)
 
-            cursor = data.get("cursor")
+            cursor = data.get("next_cursor")
             if not cursor:
                 break
 
