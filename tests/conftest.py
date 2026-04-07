@@ -3,7 +3,7 @@ import sqlite3
 import pytest
 
 from src.storage.database import initialize_schema
-from src.storage.models import TaskStore
+from src.storage.models import MessageStore
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def test_db():
 @pytest.fixture
 def task_store(test_db):
     """TaskStore backed by an in-memory database."""
-    return TaskStore(test_db)
+    return MessageStore(test_db)
 
 
 @pytest.fixture

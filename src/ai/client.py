@@ -22,12 +22,13 @@ class AIClient:
         self.message_store = message_store
 
     def answer_question(self, question: str) -> str:
-        """Search messages and use Claude to answer a team member's question."""
+        """Search messages, emails, and meetings to answer a team member's question."""
         message_results, email_results = self._search_for_context(question)
+        meeting_results = self._search_meetings_for_context(question)
 
-        if not message_results and not email_results:
+        if not message_results and not email_results and not meeting_results:
             return (
-                "I couldn't find any relevant messages or emails matching your question. "
+                "I couldn't find any relevant messages, emails, or meeting notes matching your question. "
                 "Try rephrasing with different keywords, or ask about a specific "
                 "channel or person."
             )
@@ -39,6 +40,9 @@ class AIClient:
         if email_results:
             context_parts.append("EMAILS (projects@casamkali.com):")
             context_parts.append(self._format_emails_as_context(email_results))
+        if meeting_results:
+            context_parts.append("MEETING NOTES & TRANSCRIPTS (from Fathom):")
+            context_parts.append(self._format_meetings_as_context(meeting_results))
 
         context = "\n\n".join(context_parts)
 
@@ -51,9 +55,8 @@ class AIClient:
         )
 
         logger.info(
-            "Answering question with %d messages, %d emails. Email count in DB: %d",
-            len(message_results), len(email_results),
-            self.message_store.get_email_count(),
+            "Answering question with %d messages, %d emails, %d meetings",
+            len(message_results), len(email_results), len(meeting_results),
         )
 
         response = self.client.messages.create(
@@ -154,9 +157,12 @@ class AIClient:
         # Get recent emails
         recent_emails = self.message_store.get_recent_emails(hours=24, limit=20)
 
-        if not mentions and not recent and not team_updates and not recent_emails:
+        # Get recent meetings
+        recent_meetings = self.message_store.get_recent_meetings(limit=10)
+
+        if not mentions and not recent and not team_updates and not recent_emails and not recent_meetings:
             return (
-                "Nothing new in your channels or inbox in the last 24 hours. "
+                "Nothing new in your channels, inbox, or meetings in the last 24 hours. "
                 "You're all caught up!"
             )
 
@@ -182,6 +188,10 @@ class AIClient:
         if recent_emails:
             context_parts.append("RECENT EMAILS (projects@casamkali.com):")
             context_parts.append(self._format_emails_as_context(recent_emails))
+
+        if recent_meetings:
+            context_parts.append("RECENT MEETINGS (from Fathom):")
+            context_parts.append(self._format_meetings_as_context(recent_meetings))
 
         if user_messages:
             context_parts.append("YOUR RECENT MESSAGES (for style reference):")
@@ -242,6 +252,67 @@ class AIClient:
             snippet = email.get("snippet", "")
             lines.append(f"[{date}] From: {sender}\nSubject: {subject}\n{snippet}")
         return "\n\n".join(lines)
+
+    def _search_meetings_for_context(self, question: str) -> list[dict]:
+        """Search meetings by keyword, similar to message/email search."""
+        all_results = {}
+
+        for mtg in self.message_store.search_meetings(question, limit=10):
+            all_results[mtg["fathom_id"]] = mtg
+
+        stop_words = {
+            "the", "a", "an", "is", "are", "was", "were", "what", "when",
+            "where", "who", "how", "why", "do", "does", "did", "has", "have",
+            "had", "will", "would", "could", "should", "can", "may", "might",
+            "about", "with", "from", "this", "that", "they", "them", "their",
+            "our", "we", "us", "it", "its", "any", "all", "been", "being",
+            "for", "and", "but", "not", "you", "your", "of", "in", "on",
+            "to", "at", "by",
+        }
+        words = [w for w in question.lower().split() if w not in stop_words and len(w) > 2]
+
+        for word in words[:5]:
+            for mtg in self.message_store.search_meetings(word, limit=5):
+                all_results[mtg["fathom_id"]] = mtg
+
+        # For broad questions, also include recent meetings
+        if len(words) <= 2 or not all_results:
+            for mtg in self.message_store.get_recent_meetings(limit=10):
+                all_results[mtg["fathom_id"]] = mtg
+
+        results = sorted(
+            all_results.values(),
+            key=lambda m: m.get("meeting_date") or "",
+            reverse=True,
+        )
+        return results[:20]
+
+    def _format_meetings_as_context(self, meetings: list[dict]) -> str:
+        """Format meetings into readable context for Claude."""
+        lines = []
+        for mtg in meetings:
+            date = mtg.get("meeting_date", "unknown date")
+            title = mtg.get("title", "Untitled Meeting")
+            call_type = mtg.get("call_type", "")
+            attendees = mtg.get("attendees", "")
+            summary = mtg.get("summary", "")
+            action_items = mtg.get("action_items", "")
+            share_url = mtg.get("share_url", "")
+
+            parts = [f"[{date}] Meeting: {title}"]
+            if call_type:
+                parts.append(f"Type: {call_type}")
+            if attendees:
+                parts.append(f"Attendees: {attendees}")
+            if summary:
+                parts.append(f"Summary: {summary}")
+            if action_items:
+                parts.append(f"Action Items:\n{action_items}")
+            if share_url:
+                parts.append(f"Recording: {share_url}")
+
+            lines.append("\n".join(parts))
+        return "\n\n---\n\n".join(lines)
 
     def process_weekly_status_reports(self) -> list[dict]:
         """Find and process weekly status report emails.

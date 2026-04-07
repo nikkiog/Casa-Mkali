@@ -424,3 +424,106 @@ class MessageStore:
             (gmail_id,),
         ).fetchone()
         return dict(row) if row else None
+
+    # --- Meeting storage (Fathom) ---
+
+    def store_meeting(
+        self,
+        fathom_id: str,
+        title: str,
+        meeting_date: Optional[str],
+        call_type: Optional[str],
+        summary: Optional[str],
+        action_items: Optional[str],
+        attendees: Optional[str],
+        transcript: Optional[str],
+        share_url: Optional[str],
+        raw_json: Optional[str] = None,
+    ) -> bool:
+        """Store a Fathom meeting. Returns True if inserted, False if duplicate."""
+        try:
+            self.conn.execute(
+                """
+                INSERT OR IGNORE INTO meetings
+                    (fathom_id, title, meeting_date, call_type, summary,
+                     action_items, attendees, transcript, share_url, raw_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (fathom_id, title, meeting_date, call_type, summary,
+                 action_items, attendees, transcript, share_url, raw_json),
+            )
+            self.conn.commit()
+            return self.conn.total_changes > 0
+        except sqlite3.IntegrityError:
+            return False
+
+    def is_meeting_stored(self, fathom_id: str) -> bool:
+        """Check if a meeting has already been stored."""
+        row = self.conn.execute(
+            "SELECT 1 FROM meetings WHERE fathom_id = ?",
+            (fathom_id,),
+        ).fetchone()
+        return row is not None
+
+    def search_meetings(self, query: str, limit: int = 20) -> list[dict]:
+        """Search meetings by keyword matching in title, summary, transcript, and action items."""
+        words = query.lower().split()
+        if not words:
+            return []
+
+        conditions = " AND ".join(
+            [
+                "(LOWER(title) LIKE ? OR LOWER(summary) LIKE ? "
+                "OR LOWER(transcript) LIKE ? OR LOWER(action_items) LIKE ?)"
+            ]
+            * len(words)
+        )
+        params = []
+        for word in words:
+            params.extend([f"%{word}%"] * 4)
+        params.append(limit)
+
+        rows = self.conn.execute(
+            f"""
+            SELECT fathom_id, title, meeting_date, call_type, summary,
+                   action_items, attendees, share_url
+            FROM meetings
+            WHERE {conditions}
+            ORDER BY meeting_date DESC
+            LIMIT ?
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_recent_meetings(self, limit: int = 20) -> list[dict]:
+        """Get the most recent meetings."""
+        rows = self.conn.execute(
+            """
+            SELECT fathom_id, title, meeting_date, call_type, summary,
+                   action_items, attendees, share_url
+            FROM meetings
+            ORDER BY meeting_date DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_meeting_count(self) -> int:
+        """Return the total number of indexed meetings."""
+        row = self.conn.execute("SELECT COUNT(*) as cnt FROM meetings").fetchone()
+        return row["cnt"]
+
+    def get_meeting_by_id(self, fathom_id: str) -> Optional[dict]:
+        """Get a full meeting by its Fathom ID, including transcript."""
+        row = self.conn.execute(
+            """
+            SELECT fathom_id, title, meeting_date, call_type, summary,
+                   action_items, attendees, transcript, share_url
+            FROM meetings
+            WHERE fathom_id = ?
+            """,
+            (fathom_id,),
+        ).fetchone()
+        return dict(row) if row else None

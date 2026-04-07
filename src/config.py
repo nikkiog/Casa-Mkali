@@ -18,6 +18,9 @@ class Config:
     gmail_credentials_path: str
     gmail_token_path: str
 
+    # Fathom
+    fathom_api_key: str
+
     # Storage
     db_path: str
 
@@ -58,5 +61,6 @@ def load_config() -> Config:
         gmail_token_path=os.environ.get(
             "GMAIL_TOKEN_PATH", "data/gmail_token.json"
         ),
+        fathom_api_key=os.environ.get("FATHOM_API_KEY", ""),
         db_path=os.environ.get("DB_PATH", "data/casa_mkali.db"),
     )

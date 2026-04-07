@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 REINDEX_INTERVAL = 300  # 5 minutes
 SUMMARY_INTERVAL = 86400  # 24 hours
 GMAIL_POLL_INTERVAL = 60  # 1 minute
+FATHOM_POLL_INTERVAL = 300  # 5 minutes
 
 
 class Orchestrator:
@@ -46,6 +47,18 @@ class Orchestrator:
 
         # Message indexer
         self.indexer = MessageIndexer(self.slack_client, self.message_store)
+
+        # Fathom (optional — only if API key is set)
+        self.fathom_poller = None
+        if self.config.fathom_api_key:
+            try:
+                from src.fathom.client import FathomClient
+                from src.fathom.poller import FathomPoller
+                fathom_client = FathomClient(self.config.fathom_api_key)
+                self.fathom_poller = FathomPoller(fathom_client, self.message_store)
+                logger.info("Fathom integration enabled")
+            except Exception:
+                logger.exception("Fathom integration failed to initialize")
 
         # Gmail (optional — only if credentials exist)
         self.gmail_poller = None
@@ -403,6 +416,30 @@ class Orchestrator:
             except Exception:
                 logger.exception("Error polling Gmail")
 
+    def _fathom_poll_loop(self):
+        """Background thread: polls Fathom for new meetings."""
+        if not self.fathom_poller:
+            return
+
+        # Initial fetch
+        try:
+            logger.info("Starting initial Fathom meeting sync...")
+            stored = self.fathom_poller.poll_and_store()
+            total = self.message_store.get_meeting_count()
+            logger.info("Initial Fathom sync complete: %d new meetings. Total: %d", stored, total)
+        except Exception:
+            logger.exception("Error during initial Fathom sync")
+
+        # Ongoing polling
+        while self._running:
+            time.sleep(FATHOM_POLL_INTERVAL)
+            try:
+                stored = self.fathom_poller.poll_and_store()
+                if stored:
+                    logger.info("Fathom poll: indexed %d new meetings", stored)
+            except Exception:
+                logger.exception("Error polling Fathom")
+
     def _initial_index(self):
         """Background thread: initial Slack message backfill."""
         logger.info("Starting initial message indexing...")
@@ -433,6 +470,14 @@ class Orchestrator:
             )
             gmail_thread.start()
             logger.info("Gmail polling started (every %ds)", GMAIL_POLL_INTERVAL)
+
+        # Start Fathom polling
+        if self.fathom_poller:
+            fathom_thread = threading.Thread(
+                target=self._fathom_poll_loop, daemon=True, name="fathom-poller",
+            )
+            fathom_thread.start()
+            logger.info("Fathom polling started (every %ds)", FATHOM_POLL_INTERVAL)
 
         # Start periodic re-indexing
         reindex_thread = threading.Thread(

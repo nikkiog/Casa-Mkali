@@ -69,6 +69,26 @@ CREATE TABLE IF NOT EXISTS emails (
 
 CREATE INDEX IF NOT EXISTS idx_emails_date
     ON emails(email_date);
+
+CREATE TABLE IF NOT EXISTS meetings (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    fathom_id       TEXT NOT NULL UNIQUE,
+    title           TEXT NOT NULL,
+    meeting_date    TEXT,
+    call_type       TEXT,
+    summary         TEXT,
+    action_items    TEXT,
+    attendees       TEXT,
+    transcript      TEXT,
+    share_url       TEXT,
+    raw_json        TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_meetings_date
+    ON meetings(meeting_date);
+CREATE INDEX IF NOT EXISTS idx_meetings_fathom_id
+    ON meetings(fathom_id);
 """
 
 
