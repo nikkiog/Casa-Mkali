@@ -31,9 +31,18 @@ class FathomClient:
         resp.raise_for_status()
         return resp.json()
 
-    def list_meetings(self, cursor: Optional[str] = None) -> list[dict]:
-        """Fetch all meetings with summaries, transcripts, and action items."""
+    def list_meetings(
+        self,
+        created_after: Optional[str] = None,
+    ) -> list[dict]:
+        """Fetch meetings with summaries, transcripts, and action items.
+
+        Args:
+            created_after: ISO 8601 timestamp — only return meetings created
+                after this time. Used for incremental syncing.
+        """
         all_meetings = []
+        cursor = None
         while True:
             params = {
                 "include_summary": "true",
@@ -42,6 +51,8 @@ class FathomClient:
             }
             if cursor:
                 params["cursor"] = cursor
+            if created_after:
+                params["created_after"] = created_after
 
             data = self._request("GET", "/meetings", params=params)
             items = data.get("items", [])

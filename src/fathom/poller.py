@@ -120,17 +120,20 @@ class FathomPoller:
     def __init__(self, client: FathomClient, message_store: MessageStore):
         self.client = client
         self.store = message_store
+        self._last_sync_time: Optional[str] = None
 
     def poll_and_store(self) -> int:
-        """Fetch all meetings from Fathom and store new ones.
+        """Fetch meetings from Fathom and store new ones.
 
-        The list_meetings call includes summaries, transcripts, and action
-        items inline, so no extra per-meeting API calls are needed.
+        On the first call, fetches all meetings. On subsequent calls, only
+        fetches meetings created after the last successful sync.
 
         Returns the number of newly stored meetings.
         """
         try:
-            meetings = self.client.list_meetings()
+            meetings = self.client.list_meetings(
+                created_after=self._last_sync_time,
+            )
         except Exception:
             logger.exception("Error fetching meetings from Fathom")
             return 0
@@ -187,5 +190,9 @@ class FathomPoller:
             ):
                 stored += 1
                 logger.info("Stored meeting: %s (%s)", title[:60], meeting_date)
+
+        # Track sync time so subsequent polls only fetch new meetings
+        from datetime import datetime, timezone
+        self._last_sync_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return stored
