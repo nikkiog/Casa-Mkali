@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timedelta, date
@@ -150,20 +151,25 @@ class Orchestrator:
         Digest triggers: "update me", "what did i miss", "catch me up", "digest"
         Everything else is treated as a question.
         """
+        # Strip bot @mention if present (users sometimes @mention in DMs)
+        clean_text = re.sub(r"<@[A-Z0-9]+>\s*", "", text).strip()
+        if not clean_text:
+            clean_text = text
+
         # Log the interaction
         self.message_store.log_question(
             user_id=user_id,
-            question=text,
+            question=clean_text,
             source="dm",
             channel_id=channel_id,
         )
 
         # Check if it's a digest trigger
-        if not self._is_digest_request(text):
+        if not self._is_digest_request(clean_text):
             # Treat as a question
             say("Searching through team conversations... one moment.")
             try:
-                answer = self.ai_client.answer_question(text)
+                answer = self.ai_client.answer_question(clean_text)
                 say(answer)
             except Exception:
                 logger.exception("Error answering DM question from %s", user_id)
