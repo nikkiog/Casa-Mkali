@@ -75,8 +75,60 @@ class AIClient:
         text = re.sub(r"__(.+?)__", r"*\1*", text)
         return text
 
+    # Maps keywords in questions to Slack channel names.
+    # Channel names are client names; aliases map common variations.
+    CHANNEL_ALIASES = {
+        "skoop": "skoop",
+        "sebi": "sebi",
+        "dr. sebi": "sebi",
+        "dr sebi": "sebi",
+        "roofing": "roofing-source",
+        "roofing source": "roofing-source",
+        "monarch": "monarch-athletic-club",
+        "monarch athletic": "monarch-athletic-club",
+        "ron perkins": "ron-perkins",
+        "ron": "ron-perkins",
+        "focal": "focal",
+        "casa mkali": "casageneral",
+    }
+
+    # Maps team member first names to look up by person
+    TEAM_NAMES = {
+        "nikki": "nikki",
+        "natasha": "natasha",
+        "mary teresa": "mary teresa",
+        "mary": "mary teresa",
+        "monica": "monica",
+        "mackensie": "mackensie",
+        "giovanni": "giovanni",
+        "eli": "eli",
+        "ana elisa": "eli",
+        "fabrizio": "fabrizio",
+        "amber": "amber",
+    }
+
+    def _detect_channels(self, question: str) -> list[str]:
+        """Detect client/channel references in a question.
+
+        Returns a list of channel names to pull recent messages from.
+        """
+        q_lower = question.lower()
+        channels = []
+        # Check longer aliases first to avoid partial matches
+        for alias, channel in sorted(
+            self.CHANNEL_ALIASES.items(), key=lambda x: -len(x[0])
+        ):
+            if alias in q_lower and channel not in channels:
+                channels.append(channel)
+        return channels
+
     def _search_for_context(self, question: str) -> list[dict]:
-        """Run multiple search strategies to find relevant messages."""
+        """Run multiple search strategies to find relevant messages.
+
+        Includes channel-aware search: when a question mentions a client
+        name, recent messages from that client's channel are included
+        automatically.
+        """
         all_results = {}
 
         for msg in self.message_store.search_messages(question, limit=20):
@@ -100,6 +152,14 @@ class AIClient:
         for i in range(len(words) - 1):
             pair = f"{words[i]} {words[i+1]}"
             for msg in self.message_store.search_messages(pair, limit=10):
+                all_results[msg["ts"]] = msg
+
+        # Channel-aware search: pull recent messages from detected channels
+        detected_channels = self._detect_channels(question)
+        for channel_name in detected_channels:
+            for msg in self.message_store.get_recent_messages_by_channel_name(
+                channel_name, limit=30
+            ):
                 all_results[msg["ts"]] = msg
 
         results = sorted(all_results.values(), key=lambda m: m["ts"], reverse=True)

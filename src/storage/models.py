@@ -106,6 +106,22 @@ class MessageStore:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_recent_messages_by_channel_name(
+        self, channel_name: str, limit: int = 50
+    ) -> list[dict]:
+        """Get recent messages from a channel matched by name (case-insensitive)."""
+        rows = self.conn.execute(
+            """
+            SELECT channel_id, channel_name, user_id, user_name, text, ts, thread_ts
+            FROM channel_messages
+            WHERE LOWER(channel_name) = LOWER(?)
+            ORDER BY ts DESC
+            LIMIT ?
+            """,
+            (channel_name, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_sync_state(self, channel_id: str) -> Optional[str]:
         """Get the oldest timestamp synced for a channel."""
         row = self.conn.execute(
