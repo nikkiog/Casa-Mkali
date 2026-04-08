@@ -48,10 +48,12 @@ class AIClient:
 
         user_prompt = (
             f"A team member is asking: \"{question}\"\n\n"
-            f"Here are the relevant messages and emails I found:\n\n"
+            f"Here is the relevant context I found:\n\n"
             f"{context}\n\n"
-            f"Based on these, answer the team member's question. "
-            f"Only use information from the messages and emails above."
+            f"Based on the above, answer the team member's question. "
+            f"Use information from ALL sources — Slack messages, emails, "
+            f"AND Fathom meeting notes/transcripts. When citing meetings, "
+            f"reference the meeting title and date."
         )
 
         logger.info(
