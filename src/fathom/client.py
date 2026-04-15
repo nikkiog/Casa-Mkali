@@ -27,6 +27,8 @@ class FathomClient:
     def _request(self, method: str, path: str, **kwargs):
         """Make an authenticated request to the Fathom API."""
         url = f"{BASE_URL}{path}"
+        kwargs.setdefault("timeout", 30)
+        logger.debug("Fathom API %s %s", method, url)
         resp = self.session.request(method, url, **kwargs)
         resp.raise_for_status()
         return resp.json()
@@ -43,7 +45,9 @@ class FathomClient:
         """
         all_meetings = []
         cursor = None
+        page = 0
         while True:
+            page += 1
             params = {
                 "include_summary": "true",
                 "include_transcript": "true",
@@ -54,14 +58,20 @@ class FathomClient:
             if created_after:
                 params["created_after"] = created_after
 
+            logger.info(
+                "Fathom API: fetching meetings page %d (created_after=%s)",
+                page, created_after,
+            )
             data = self._request("GET", "/meetings", params=params)
             items = data.get("items", [])
+            logger.info("Fathom API: page %d returned %d meetings", page, len(items))
             all_meetings.extend(items)
 
             cursor = data.get("next_cursor")
             if not cursor:
                 break
 
+        logger.info("Fathom API: total meetings fetched: %d", len(all_meetings))
         return all_meetings
 
     def get_transcript(self, recording_id: int) -> Optional[str]:
