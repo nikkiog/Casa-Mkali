@@ -398,7 +398,7 @@ class MessageStore:
 
         rows = self.conn.execute(
             f"""
-            SELECT gmail_id, from_addr, to_addr, subject, snippet, email_date
+            SELECT gmail_id, from_addr, to_addr, subject, body, snippet, email_date
             FROM emails
             WHERE {conditions}
             ORDER BY email_date DESC
@@ -414,7 +414,7 @@ class MessageStore:
         cutoff = _time.time() - (hours * 3600)
         rows = self.conn.execute(
             """
-            SELECT gmail_id, from_addr, to_addr, subject, snippet, email_date
+            SELECT gmail_id, from_addr, to_addr, subject, body, snippet, email_date
             FROM emails
             WHERE strftime('%s', email_date) > ?
             ORDER BY email_date DESC
@@ -502,7 +502,7 @@ class MessageStore:
         rows = self.conn.execute(
             f"""
             SELECT fathom_id, title, meeting_date, call_type, summary,
-                   action_items, attendees, share_url
+                   action_items, attendees, transcript, share_url
             FROM meetings
             WHERE {conditions}
             ORDER BY meeting_date DESC
@@ -517,7 +517,7 @@ class MessageStore:
         rows = self.conn.execute(
             """
             SELECT fathom_id, title, meeting_date, call_type, summary,
-                   action_items, attendees, share_url
+                   action_items, attendees, transcript, share_url
             FROM meetings
             ORDER BY meeting_date DESC
             LIMIT ?

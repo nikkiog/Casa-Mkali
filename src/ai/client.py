@@ -311,8 +311,11 @@ class AIClient:
             date = email.get("email_date", "unknown date")
             sender = email.get("from_addr", "unknown")
             subject = email.get("subject", "(no subject)")
-            snippet = email.get("snippet", "")
-            lines.append(f"[{date}] From: {sender}\nSubject: {subject}\n{snippet}")
+            body = email.get("body") or email.get("snippet", "")
+            # Truncate very long emails to keep context manageable
+            if len(body) > 3000:
+                body = body[:3000] + "\n... [truncated]"
+            lines.append(f"[{date}] From: {sender}\nSubject: {subject}\n{body}")
         return "\n\n".join(lines)
 
     def _search_meetings_for_context(self, question: str) -> list[dict]:
@@ -359,6 +362,7 @@ class AIClient:
             attendees = mtg.get("attendees", "")
             summary = mtg.get("summary", "")
             action_items = mtg.get("action_items", "")
+            transcript = mtg.get("transcript", "")
             share_url = mtg.get("share_url", "")
 
             parts = [f"[{date}] Meeting: {title}"]
@@ -370,6 +374,11 @@ class AIClient:
                 parts.append(f"Summary: {summary}")
             if action_items:
                 parts.append(f"Action Items:\n{action_items}")
+            if transcript:
+                # Truncate very long transcripts to keep context manageable
+                if len(transcript) > 5000:
+                    transcript = transcript[:5000] + "\n... [truncated]"
+                parts.append(f"Transcript:\n{transcript}")
             if share_url:
                 parts.append(f"Recording: {share_url}")
 
