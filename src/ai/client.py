@@ -190,7 +190,7 @@ class AIClient:
             reverse=True,
         )
 
-        return results[:50], email_list[:30]
+        return results[:30], email_list[:10]
 
     def generate_personal_digest(
         self,
@@ -316,9 +316,9 @@ class AIClient:
             sender = email.get("from_addr", "unknown")
             subject = email.get("subject", "(no subject)")
             body = email.get("body") or email.get("snippet", "")
-            # Truncate very long emails to keep context manageable
-            if len(body) > 3000:
-                body = body[:3000] + "\n... [truncated]"
+            # Truncate to keep context within API token limits
+            if len(body) > 1500:
+                body = body[:1500] + "\n... [truncated]"
             lines.append(f"[{date}] From: {sender}\nSubject: {subject}\n{body}")
         return "\n\n".join(lines)
 
@@ -354,7 +354,7 @@ class AIClient:
             key=lambda m: m.get("meeting_date") or "",
             reverse=True,
         )
-        return results[:20]
+        return results[:5]
 
     def _format_meetings_as_context(self, meetings: list[dict]) -> str:
         """Format meetings into readable context for Claude."""
@@ -379,9 +379,9 @@ class AIClient:
             if action_items:
                 parts.append(f"Action Items:\n{action_items}")
             if transcript:
-                # Truncate very long transcripts to keep context manageable
-                if len(transcript) > 5000:
-                    transcript = transcript[:5000] + "\n... [truncated]"
+                # Truncate to keep context within API token limits
+                if len(transcript) > 2000:
+                    transcript = transcript[:2000] + "\n... [truncated]"
                 parts.append(f"Transcript:\n{transcript}")
             if share_url:
                 parts.append(f"Recording: {share_url}")
