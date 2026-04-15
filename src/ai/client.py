@@ -61,10 +61,13 @@ class AIClient:
             len(message_results), len(email_results), len(meeting_results),
         )
 
+        today = datetime.now().strftime("%A, %B %d, %Y")
+        system = f"Today's date is {today}.\n\n{SYSTEM_PROMPT}"
+
         response = self.client.messages.create(
             model=self.model,
             max_tokens=2048,
-            system=SYSTEM_PROMPT,
+            system=system,
             messages=[{"role": "user", "content": user_prompt}],
         )
 
@@ -265,7 +268,8 @@ class AIClient:
         channel_list = ", ".join(f"#{name}" for name in channel_names)
         profile_json = json.dumps(user_profile, indent=2, default=str)
 
-        system = DIGEST_PROMPT.format(
+        today = datetime.now().strftime("%A, %B %d, %Y")
+        system = f"Today's date is {today}.\n\n" + DIGEST_PROMPT.format(
             display_name=user_name,
             channel_list=channel_list,
             user_profile_json=profile_json,
