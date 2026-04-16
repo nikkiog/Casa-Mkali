@@ -30,6 +30,7 @@ class SlackBot:
         on_digest_command: Callable,
         on_thread_update: Callable,
         on_client_reports: Callable,
+        on_followup: Callable,
     ):
         self.config = config
         self.on_channel_message = on_channel_message
@@ -39,6 +40,7 @@ class SlackBot:
         self.on_digest_command = on_digest_command
         self.on_thread_update = on_thread_update
         self.on_client_reports = on_client_reports
+        self.on_followup = on_followup
         self.app = App(token=config.slack_bot_token)
         self._bot_user_id: Optional[str] = None
         self._handler: Optional[SocketModeHandler] = None
@@ -98,6 +100,7 @@ class SlackBot:
                 channel_id=channel_id,
                 say=say_in_thread,
                 source="slash",
+                thread_ts=question_ts,
             )
 
         # --- /updateme slash command ---
@@ -218,6 +221,7 @@ class SlackBot:
                 channel_id=channel_id,
                 say=say_in_thread,
                 source="mention",
+                thread_ts=ts,
             )
 
         # --- Channel message indexing + DM handling ---
@@ -268,7 +272,7 @@ class SlackBot:
                 except Exception:
                     user_name = user_id
 
-                # Check if this is a thread reply to a bot message (= update)
+                # Check if this is a thread reply to a bot message
                 if thread_ts and thread_ts != ts:
                     try:
                         parent = client.conversations_history(
@@ -282,10 +286,10 @@ class SlackBot:
                             parent_msg = parent_msgs[0]
                             bot_id = self._get_bot_user_id()
                             if parent_msg.get("user") == bot_id or parent_msg.get("bot_id"):
-                                # This is a reply to the bot — treat as an update
+                                # Reply to the bot — treat as a follow-up question
                                 logger.info(
-                                    "Thread update from %s: %s",
-                                    user_name, text[:80],
+                                    "Follow-up from %s in thread %s: %s",
+                                    user_name, thread_ts, text[:80],
                                 )
 
                                 def say_in_thread(response_text):
@@ -295,9 +299,8 @@ class SlackBot:
                                         text=response_text,
                                     )
 
-                                self.on_thread_update(
+                                self.on_followup(
                                     user_id=user_id,
-                                    user_name=user_name,
                                     text=text,
                                     channel_id=channel_id,
                                     thread_ts=thread_ts,

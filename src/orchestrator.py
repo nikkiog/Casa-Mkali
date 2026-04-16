@@ -4,6 +4,7 @@ import logging
 import re
 import threading
 import time
+from collections import OrderedDict
 from datetime import datetime, timedelta, date
 
 from slack_sdk import WebClient
@@ -88,9 +89,46 @@ class Orchestrator:
             on_digest_command=self.on_digest_command,
             on_thread_update=self.on_thread_update,
             on_client_reports=self.on_client_reports,
+            on_followup=self.on_followup,
         )
 
         self._running = False
+
+        # Conversation history: keyed by thread_ts (channels) or channel_id (DMs).
+        # Each value is {"messages": [{"role": ..., "content": ...}], "ts": float}.
+        # Capped at 50 conversations; oldest evicted when full.
+        self._conversations: OrderedDict[str, dict] = OrderedDict()
+        self._conv_lock = threading.Lock()
+        self._conv_max = 50
+        self._conv_ttl = 3600  # 1 hour
+
+    # --- Conversation history helpers ---
+
+    def _get_conversation(self, conv_key: str) -> list[dict]:
+        """Return conversation history for a key, or empty list if expired/missing."""
+        with self._conv_lock:
+            entry = self._conversations.get(conv_key)
+            if not entry:
+                return []
+            if time.time() - entry["ts"] > self._conv_ttl:
+                self._conversations.pop(conv_key, None)
+                return []
+            return list(entry["messages"])
+
+    def _append_conversation(self, conv_key: str, role: str, content: str):
+        """Append a message to a conversation, creating it if needed."""
+        with self._conv_lock:
+            if conv_key not in self._conversations:
+                # Evict oldest if at capacity
+                while len(self._conversations) >= self._conv_max:
+                    self._conversations.popitem(last=False)
+                self._conversations[conv_key] = {"messages": [], "ts": time.time()}
+            entry = self._conversations[conv_key]
+            entry["messages"].append({"role": role, "content": content})
+            entry["ts"] = time.time()
+            # Keep last 10 turns (5 exchanges) to stay within token limits
+            if len(entry["messages"]) > 10:
+                entry["messages"] = entry["messages"][-10:]
 
     def on_channel_message(
         self, channel_id, channel_name, user_id, user_name, text, ts, thread_ts
@@ -106,7 +144,7 @@ class Orchestrator:
             thread_ts=thread_ts,
         )
 
-    def on_question(self, user_id, text, channel_id, say, source="mention"):
+    def on_question(self, user_id, text, channel_id, say, source="mention", thread_ts=None):
         """Called when a team member asks a question."""
         logger.info("Question from %s via %s: %s", user_id, source, text[:80])
 
@@ -118,9 +156,18 @@ class Orchestrator:
             channel_id=channel_id,
         )
 
+        # Use thread_ts as conversation key for channel threads
+        conv_key = thread_ts if thread_ts else None
+
         try:
-            answer = self.ai_client.answer_question(text)
+            history = self._get_conversation(conv_key) if conv_key else None
+            answer = self.ai_client.answer_question(text, conversation_history=history)
             resp = say(answer)
+
+            # Track conversation history
+            if conv_key:
+                self._append_conversation(conv_key, "user", text)
+                self._append_conversation(conv_key, "assistant", answer)
 
             # Track the answer's message ts for feedback linking
             if resp and isinstance(resp, dict):
@@ -136,6 +183,34 @@ class Orchestrator:
                 "Sorry, I ran into an error while searching. "
                 "Please try again or rephrase your question."
             )
+
+    def on_followup(self, user_id, text, channel_id, thread_ts, say):
+        """Called when a user replies in a thread under a bot answer — continue the conversation."""
+        logger.info("Follow-up from %s in thread %s: %s", user_id, thread_ts, text[:80])
+
+        self.message_store.log_question(
+            user_id=user_id,
+            question=text,
+            source="followup",
+            channel_id=channel_id,
+        )
+
+        try:
+            history = self._get_conversation(thread_ts)
+            answer = self.ai_client.answer_question(text, conversation_history=history)
+            resp = say(answer)
+
+            self._append_conversation(thread_ts, "user", text)
+            self._append_conversation(thread_ts, "assistant", answer)
+
+            if resp and isinstance(resp, dict):
+                answer_ts = resp.get("ts")
+                if answer_ts:
+                    self.slack_bot.add_reactions(channel_id, answer_ts)
+
+        except Exception:
+            logger.exception("Error answering follow-up from %s", user_id)
+            say("Sorry, I ran into an error. Please try again.")
 
     # Trigger phrases that map to the digest handler
     DIGEST_TRIGGERS = {"update me", "what did i miss", "catch me up", "digest", "hi", "hey", "hello"}
@@ -166,11 +241,14 @@ class Orchestrator:
 
         # Check if it's a digest trigger
         if not self._is_digest_request(clean_text):
-            # Treat as a question
+            # Treat as a question — use channel_id as conversation key for DMs
             say("Searching through team conversations... one moment.")
             try:
-                answer = self.ai_client.answer_question(clean_text)
+                history = self._get_conversation(channel_id)
+                answer = self.ai_client.answer_question(clean_text, conversation_history=history)
                 say(answer)
+                self._append_conversation(channel_id, "user", clean_text)
+                self._append_conversation(channel_id, "assistant", answer)
             except Exception:
                 logger.exception("Error answering DM question from %s", user_id)
                 say("Sorry, I ran into an error. Please try again.")

@@ -21,18 +21,22 @@ class AIClient:
         self.model = "claude-sonnet-4-20250514"
         self.message_store = message_store
 
-    def answer_question(self, question: str) -> str:
-        """Search messages, emails, and meetings to answer a team member's question."""
+    def answer_question(
+        self, question: str, conversation_history: list[dict] | None = None,
+    ) -> str:
+        """Search messages, emails, and meetings to answer a team member's question.
+
+        Args:
+            question: The current question text.
+            conversation_history: Optional list of prior {"role", "content"} turns
+                for multi-turn conversations. When provided, context is still
+                searched fresh for the new question but Claude sees the full
+                conversation so far.
+        """
         message_results, email_results = self._search_for_context(question)
         meeting_results = self._search_meetings_for_context(question)
 
-        if not message_results and not email_results and not meeting_results:
-            return (
-                "I couldn't find any relevant messages, emails, or meeting notes matching your question. "
-                "Try rephrasing with different keywords, or ask about a specific "
-                "channel or person."
-            )
-
+        # Build context from search results
         context_parts = []
         if message_results:
             context_parts.append("SLACK MESSAGES:")
@@ -44,31 +48,43 @@ class AIClient:
             context_parts.append("MEETING NOTES & TRANSCRIPTS (from Fathom):")
             context_parts.append(self._format_meetings_as_context(meeting_results))
 
-        context = "\n\n".join(context_parts)
+        context = "\n\n".join(context_parts) if context_parts else ""
 
-        user_prompt = (
-            f"A team member is asking: \"{question}\"\n\n"
-            f"Here is the relevant context I found:\n\n"
-            f"{context}\n\n"
-            f"Based on the above, answer the team member's question. "
-            f"Use information from ALL sources — Slack messages, emails, "
-            f"AND Fathom meeting notes/transcripts. When citing meetings, "
-            f"reference the meeting title and date."
-        )
+        if context:
+            user_prompt = (
+                f"A team member is asking: \"{question}\"\n\n"
+                f"Here is the relevant context I found:\n\n"
+                f"{context}\n\n"
+                f"Based on the above, answer the team member's question. "
+                f"Use information from ALL sources — Slack messages, emails, "
+                f"AND Fathom meeting notes/transcripts. When citing meetings, "
+                f"reference the meeting title and date."
+            )
+        else:
+            # No search results — for follow-ups Claude may still be able to
+            # answer from conversation history alone.
+            user_prompt = f"A team member is asking: \"{question}\""
 
         logger.info(
-            "Answering question with %d messages, %d emails, %d meetings",
+            "Answering question with %d messages, %d emails, %d meetings (history: %d turns)",
             len(message_results), len(email_results), len(meeting_results),
+            len(conversation_history) if conversation_history else 0,
         )
 
         today = datetime.now().strftime("%A, %B %d, %Y")
         system = f"Today's date is {today}.\n\n{SYSTEM_PROMPT}"
 
+        # Build messages list: prior conversation + current question
+        if conversation_history:
+            messages = list(conversation_history) + [{"role": "user", "content": user_prompt}]
+        else:
+            messages = [{"role": "user", "content": user_prompt}]
+
         response = self.client.messages.create(
             model=self.model,
             max_tokens=2048,
             system=system,
-            messages=[{"role": "user", "content": user_prompt}],
+            messages=messages,
         )
 
         return self._to_slack_formatting(response.content[0].text)
