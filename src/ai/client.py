@@ -7,7 +7,7 @@ from datetime import datetime
 
 from anthropic import Anthropic
 
-from src.ai.prompts import SYSTEM_PROMPT, DIGEST_PROMPT, CLIENT_REPORT_PROMPT
+from src.ai.prompts import SYSTEM_PROMPT, DIGEST_PROMPT, CLIENT_REPORT_PROMPT, TODO_PROMPT
 from src.storage.models import MessageStore
 
 logger = logging.getLogger(__name__)
@@ -85,6 +85,24 @@ class AIClient:
             max_tokens=2048,
             system=system,
             messages=messages,
+        )
+
+        return self._to_slack_formatting(response.content[0].text)
+
+    def get_user_todos(self, user_id: str, user_name: str, todo_message: str) -> str:
+        """Extract tasks for a specific user from the weekly to-do message."""
+        today = datetime.now().strftime("%A, %B %d, %Y")
+
+        user_prompt = (
+            f"Extract the to-dos for *{user_name}* (Slack ID: <@{user_id}>).\n\n"
+            f"Here is the weekly to-do message:\n\n{todo_message}"
+        )
+
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=1024,
+            system=f"Today's date is {today}.\n\n{TODO_PROMPT}",
+            messages=[{"role": "user", "content": user_prompt}],
         )
 
         return self._to_slack_formatting(response.content[0].text)

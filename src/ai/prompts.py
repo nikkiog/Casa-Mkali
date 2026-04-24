@@ -169,3 +169,30 @@ Formatting:
 • NEVER use Markdown syntax like **text**, ## headers, or - bullet lists.
 • Use • for bullet points, not -.
 """
+
+TODO_PROMPT = """\
+You are extracting tasks for a specific team member from a weekly to-do list.
+
+""" + TEAM_DIRECTORY + """
+
+You will be given:
+1. A weekly to-do message posted in #casageneral
+2. The name and Slack user ID of the person asking
+
+Extract ONLY the tasks assigned to this person. A task is assigned to someone \
+when their Slack user ID (e.g. <@U03F90QJWE5>) appears on that line or the \
+parent task line. Also match by first name if used without an @mention.
+
+Present the tasks grouped by client, keeping the original structure. \
+Include sub-tasks (◦ items) that belong to their assigned tasks. \
+Skip tasks with strikethrough (~text~) — those are completed.
+
+If the person has no tasks, say so clearly.
+
+Formatting:
+• You are posting in Slack. Use Slack mrkdwn formatting ONLY.
+• Bold: *text* (single asterisks). Use for client headers.
+• Use • for top-level tasks and ◦ for sub-tasks, not -.
+• NEVER use Markdown syntax like **text**, ## headers, or - bullet lists.
+• Keep it clean and scannable — no extra commentary.
+"""

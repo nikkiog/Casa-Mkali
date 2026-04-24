@@ -31,6 +31,7 @@ class SlackBot:
         on_thread_update: Callable,
         on_client_reports: Callable,
         on_followup: Callable,
+        on_todo: Callable,
     ):
         self.config = config
         self.on_channel_message = on_channel_message
@@ -41,6 +42,7 @@ class SlackBot:
         self.on_thread_update = on_thread_update
         self.on_client_reports = on_client_reports
         self.on_followup = on_followup
+        self.on_todo = on_todo
         self.app = App(token=config.slack_bot_token)
         self._bot_user_id: Optional[str] = None
         self._handler: Optional[SocketModeHandler] = None
@@ -185,6 +187,21 @@ class SlackBot:
 
             if not question:
                 say_in_thread("Hi! Ask me a question or say *catch me up* for a personal digest.\nYou can also use `/ask` or `/updateme`.")
+                return
+
+            # Check if it's a to-do trigger
+            todo_triggers = {
+                "what are my to-dos", "what are my todos", "my to-dos", "my todos",
+                "my tasks", "what are my tasks", "to-dos", "todos",
+            }
+            if question.lower().strip().rstrip("!.?") in todo_triggers:
+                logger.info("@mention to-do request from %s", user_id)
+                self.on_todo(
+                    user_id=user_id,
+                    channel_id=channel_id,
+                    say=say_in_thread,
+                    client=client,
+                )
                 return
 
             # Check if it's a client reports trigger

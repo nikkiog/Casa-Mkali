@@ -441,6 +441,27 @@ class MessageStore:
         ).fetchone()
         return dict(row) if row else None
 
+    # --- Weekly to-dos ---
+
+    def get_latest_weekly_todos(self) -> Optional[dict]:
+        """Get the most recent weekly to-do message from #casageneral.
+
+        These are posted on Mondays and start with '*Hi team*' and contain
+        'to-dos by client'.
+        """
+        row = self.conn.execute(
+            """
+            SELECT channel_id, channel_name, user_id, user_name, text, ts
+            FROM channel_messages
+            WHERE LOWER(channel_name) = 'casageneral'
+              AND text LIKE '*Hi team*%'
+              AND LOWER(text) LIKE '%to-dos%'
+            ORDER BY ts DESC
+            LIMIT 1
+            """,
+        ).fetchone()
+        return dict(row) if row else None
+
     # --- Meeting storage (Fathom) ---
 
     def store_meeting(

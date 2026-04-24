@@ -90,6 +90,7 @@ class Orchestrator:
             on_thread_update=self.on_thread_update,
             on_client_reports=self.on_client_reports,
             on_followup=self.on_followup,
+            on_todo=self.on_todo,
         )
 
         self._running = False
@@ -215,10 +216,70 @@ class Orchestrator:
     # Trigger phrases that map to the digest handler
     DIGEST_TRIGGERS = {"update me", "what did i miss", "catch me up", "digest", "hi", "hey", "hello"}
 
+    # Trigger phrases for to-do lookup
+    TODO_TRIGGERS = {
+        "what are my to-dos", "what are my todos", "my to-dos", "my todos",
+        "my tasks", "what are my tasks", "to-dos", "todos",
+    }
+
     def _is_digest_request(self, text: str) -> bool:
         """Check if the message is a digest trigger phrase."""
         text_lower = text.lower().strip().rstrip("!.?")
         return text_lower in self.DIGEST_TRIGGERS
+
+    def _is_todo_request(self, text: str) -> bool:
+        """Check if the message is a to-do trigger phrase."""
+        text_lower = text.lower().strip().rstrip("!.?")
+        return text_lower in self.TODO_TRIGGERS
+
+    def _handle_todo_request(self, user_id, say, client):
+        """Look up the weekly to-do message and extract tasks for this user."""
+        say("Looking up your to-dos... one moment.")
+
+        try:
+            # Get user's display name
+            user_name = user_id
+            try:
+                user_info = client.users_info(user=user_id)
+                profile = user_info["user"]["profile"]
+                user_name = (
+                    profile.get("display_name")
+                    or profile.get("real_name")
+                    or user_id
+                )
+            except Exception:
+                pass
+
+            # Find the latest weekly to-do message
+            todo_msg = self.message_store.get_latest_weekly_todos()
+            if not todo_msg:
+                say(
+                    "I couldn't find a weekly to-do message in #casageneral. "
+                    "Make sure the to-dos have been posted this week."
+                )
+                return
+
+            # Extract this user's tasks
+            answer = self.ai_client.get_user_todos(
+                user_id=user_id,
+                user_name=user_name,
+                todo_message=todo_msg["text"],
+            )
+            say(answer)
+
+        except Exception:
+            logger.exception("Error fetching to-dos for %s", user_id)
+            say("Sorry, I ran into an error looking up your to-dos. Please try again.")
+
+    def on_todo(self, user_id, channel_id, say, client):
+        """Called when someone requests their to-dos via @mention."""
+        self.message_store.log_question(
+            user_id=user_id,
+            question="my to-dos",
+            source="mention",
+            channel_id=channel_id,
+        )
+        self._handle_todo_request(user_id=user_id, say=say, client=client)
 
     def on_dm(self, user_id, text, channel_id, say, client):
         """Called when a user DMs the bot.
@@ -238,6 +299,11 @@ class Orchestrator:
             source="dm",
             channel_id=channel_id,
         )
+
+        # Check if it's a to-do trigger
+        if self._is_todo_request(clean_text):
+            self._handle_todo_request(user_id=user_id, say=say, client=client)
+            return
 
         # Check if it's a digest trigger
         if not self._is_digest_request(clean_text):
